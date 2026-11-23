@@ -1,0 +1,1451 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="反复转存、压缩、加水印，在浏览器本地把普通图片做成电子包浆。支持贴吧、微博、B站、抖音、小红书等平台水印，图片不上传。">
+<meta name="theme-color" content="#f5f5f5">
+<title>电子包浆图生成器</title>
+<style>
+  :root {
+    --site-bg: #f5f5f5;
+    --site-fg: #333333;
+    --site-accent: #4a7dbb;
+    --site-on-accent: #ffffff;
+    --site-surface: #ffffff;
+    --site-muted: #888888;
+    --site-border: #e0e0e0;
+    --site-font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    --site-radius: 4px;
+    --site-space: 1;
+    --site-type: 1;
+    --bg: var(--site-bg);
+    --panel: var(--site-surface);
+    --line: var(--site-border);
+    --text: var(--site-fg);
+    --muted: var(--site-muted);
+    --accent: var(--site-accent);
+    --btn-bg: #edf3fb;
+    --btn-bg-hover: #e0ebf8;
+    --btn-border: #cddcef;
+    --btn-text: #28507f;
+  }
+
+  * { box-sizing: border-box; }
+  ::selection { background: var(--site-accent); color: var(--site-on-accent); }
+  html, body { height: 100%; }
+
+  body {
+    margin: 0;
+    display: flex;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--site-font);
+    font-size: calc(14px * var(--site-type));
+    line-height: 1.6;
+  }
+
+  .panel {
+    flex: 0 0 300px;
+    width: 300px;
+    height: 100vh;
+    padding: calc(20px * var(--site-space)) calc(18px * var(--site-space));
+    background: var(--panel);
+    border-right: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    gap: calc(12px * var(--site-space));
+    overflow: hidden;
+  }
+
+  .panel-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: calc(16px * var(--site-space));
+  }
+
+  .panel h1 { margin: 0; font-size: calc(16px * var(--site-type)); font-weight: 600; }
+  .subtitle { margin: calc(4px * var(--site-space)) 0 0; font-size: calc(12px * var(--site-type)); color: var(--muted); }
+
+  .group {
+    display: flex;
+    flex-direction: column;
+    gap: calc(10px * var(--site-space));
+    padding-top: calc(16px * var(--site-space));
+    border-top: 1px solid var(--line);
+  }
+  .panel header + .group { padding-top: 0; border-top: 0; }
+
+  .group-title { font-size: calc(12px * var(--site-type)); color: var(--muted); }
+  .field { display: flex; flex-direction: column; gap: calc(4px * var(--site-space)); }
+  .field > label { font-size: calc(13px * var(--site-type)); }
+  .label-row { display: flex; justify-content: space-between; align-items: baseline; gap: calc(8px * var(--site-space)); }
+  .label-row label { font-size: calc(13px * var(--site-type)); }
+  .value { font-size: calc(12px * var(--site-type)); color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  input[type="range"] { width: 100%; margin: 0; accent-color: var(--accent); }
+
+  select {
+    width: 100%;
+    padding: calc(6px * var(--site-space)) calc(8px * var(--site-space));
+    font: inherit;
+    color: var(--text);
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: var(--site-radius);
+  }
+  select:focus { outline: none; border-color: #9fbcdd; }
+
+  button {
+    padding: calc(7px * var(--site-space)) calc(10px * var(--site-space));
+    font: inherit;
+    color: var(--btn-text);
+    background: var(--btn-bg);
+    border: 1px solid var(--btn-border);
+    border-radius: var(--site-radius);
+    cursor: pointer;
+  }
+  button:hover:not(:disabled) { background: var(--btn-bg-hover); }
+  button:disabled { opacity: 0.55; cursor: not-allowed; }
+  button.primary { font-weight: 600; }
+  button.plain { background: #fff; border-color: var(--line); color: #555; }
+  button.plain:hover:not(:disabled) { background: #f7f7f7; }
+
+  .button-row { display: flex; gap: calc(8px * var(--site-space)); }
+  .button-row button { flex: 1; }
+  .preset-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: calc(6px * var(--site-space)); }
+  .preset-row button { padding: calc(6px * var(--site-space)) 2px; font-size: calc(12px * var(--site-type)); white-space: nowrap; }
+  .hint { margin: 0; font-size: calc(12px * var(--site-type)); color: var(--muted); }
+  .status { margin: 0; min-height: 18px; font-size: calc(12px * var(--site-type)); color: var(--muted); }
+  input[type="checkbox"] { margin: 0; accent-color: var(--accent); }
+  .check-row { display: flex; align-items: center; gap: calc(8px * var(--site-space)); font-size: calc(13px * var(--site-type)); cursor: pointer; }
+  details.advanced { font-size: calc(12px * var(--site-type)); color: var(--muted); }
+  details.advanced > summary { cursor: pointer; }
+  details.advanced .adv-body {
+    display: flex;
+    flex-direction: column;
+    gap: calc(10px * var(--site-space));
+    margin-top: calc(10px * var(--site-space));
+    color: var(--text);
+  }
+  .actions {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: calc(8px * var(--site-space));
+    margin: 0;
+    padding: calc(12px * var(--site-space)) 0 0;
+    border-top: 1px solid var(--line);
+    background: var(--panel);
+  }
+
+  .preview {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    height: 100vh;
+    padding: calc(24px * var(--site-space));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .empty {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: calc(14px * var(--site-space));
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-size: calc(13px * var(--site-type));
+    color: #9a9a9a;
+    background: #fafafa;
+    border: 1px dashed #d0d0d0;
+    border-radius: calc(var(--site-radius) + 2px);
+  }
+
+  #canvas {
+    display: none;
+    max-width: 100%;
+    max-height: 100%;
+    background: #fff;
+    border: 1px solid var(--line);
+  }
+  .preview.has-image #canvas { display: block; }
+  .preview.has-image .empty { display: none; }
+
+  @media (max-width: 820px) {
+    body { flex-direction: column; }
+    .panel {
+      width: 100%;
+      height: auto;
+      flex: 0 0 auto;
+      border-right: 0;
+      border-bottom: 1px solid var(--line);
+      overflow: visible;
+    }
+    .panel-scroll { overflow: visible; }
+    .preview { min-height: 0; padding: calc(14px * var(--site-space)) calc(12px * var(--site-space)) calc(28px * var(--site-space)); }
+    .preview:not(.has-image) { min-height: 240px; }
+    #canvas { max-height: 60vh; }
+    .actions { padding-bottom: 2px; }
+  }
+</style>
+</head>
+<body>
+<aside class="panel">
+  <div class="panel-scroll">
+  <header>
+    <h1>电子包浆图生成器</h1>
+    <p class="subtitle">反复转存、压缩、加水印，一键出包浆</p>
+  </header>
+
+  <div class="group">
+    <div class="group-title">原图</div>
+    <div class="button-row">
+      <button id="uploadBtn" type="button">选择图片</button>
+      <button id="sampleBtn" type="button" class="plain">使用示例图</button>
+    </div>
+    <input id="file" type="file" accept="image/*" hidden>
+    <p class="hint">长边超过 1200px 会自动缩小，处理更快。图片只在本地处理，不会上传。</p>
+  </div>
+
+  <div class="group">
+    <div class="group-title">包浆效果</div>
+
+    <div class="field">
+      <div class="label-row">
+        <label for="green">中毒绿</label>
+        <span class="value" id="greenVal">0</span>
+      </div>
+      <input id="green" type="range" min="0" max="100" step="1" value="0">
+    </div>
+
+    <div class="field">
+      <div class="label-row">
+        <label for="years">包浆年份</label>
+        <span class="value" id="yearsVal">12</span>
+      </div>
+      <input id="years" type="range" min="1" max="20" step="1" value="12">
+    </div>
+
+    <div class="field">
+      <div class="label-row">
+        <label for="quality">画质</label>
+        <span class="value" id="qualityVal">60%</span>
+      </div>
+      <input id="quality" type="range" min="0" max="100" step="1" value="60">
+    </div>
+
+    <p class="hint">年份是转存轮数：每轮重新压一次 JPEG，水印按层数分散在各轮里，旧层会跟着一起糊掉；即使中毒绿为 0，转存本身也会让画面慢慢发绿。</p>
+
+    <div class="preset-row">
+      <button type="button" class="plain" data-preset="tieba">经典贴吧</button>
+      <button type="button" class="plain" data-preset="old">十年老图</button>
+      <button type="button" class="plain" data-preset="mix">平台大杂烩</button>
+    </div>
+
+    <details class="advanced">
+      <summary>高级选项</summary>
+      <div class="adv-body">
+        <div class="field">
+          <div class="label-row">
+            <label for="noise">噪点</label>
+            <span class="value" id="noiseVal">0</span>
+          </div>
+          <input id="noise" type="range" min="0" max="125" step="1" value="0">
+        </div>
+
+        <div class="field">
+          <div class="label-row">
+            <label for="darkNoise">暗部颗粒</label>
+            <span class="value" id="darkNoiseVal">0</span>
+          </div>
+          <input id="darkNoise" type="range" min="0" max="125" step="1" value="0">
+        </div>
+
+        <div class="field">
+          <div class="label-row">
+            <label for="mix">模糊</label>
+            <span class="value" id="mixVal">1</span>
+          </div>
+          <input id="mix" type="range" min="1" max="20" step="0.1" value="1">
+        </div>
+
+        <div class="field">
+          <div class="label-row">
+            <label for="light">亮度</label>
+            <span class="value" id="lightVal">0</span>
+          </div>
+          <input id="light" type="range" min="-100" max="100" step="1" value="0">
+        </div>
+
+        <div class="field">
+          <label for="convolve">卷积</label>
+          <select id="convolve">
+            <option value="">无</option>
+            <option value="tiltRight">右倾</option>
+            <option value="tiltLeft">左倾</option>
+            <option value="sauna">桑拿</option>
+            <option value="emboss">浮雕</option>
+          </select>
+        </div>
+      </div>
+    </details>
+  </div>
+
+  <div class="group">
+    <div class="group-title">水印</div>
+
+    <div class="field">
+      <div class="label-row">
+        <label for="wmLayers">水印层数</label>
+        <span class="value" id="wmLayersVal">24</span>
+      </div>
+      <input id="wmLayers" type="range" min="0" max="60" step="1" value="24">
+    </div>
+
+    <label class="check-row"><input id="platformWm" type="checkbox" checked> 混入平台水印</label>
+
+    <div class="field">
+      <label for="wmPos">用户名水印位置</label>
+      <select id="wmPos">
+        <option value="2" selected>随机（右下 / 底部 / 居中）</option>
+        <option value="1">右下 / 底部</option>
+        <option value="0">仅右下角</option>
+      </select>
+    </div>
+
+    <div class="button-row">
+      <button id="wmReroll" type="button" class="plain">换一批水印</button>
+    </div>
+    <p class="hint">名字和各平台昵称都自动生成；每个平台的版式和位置各不相同，和用户名层一起随机叠进去，越早叠的糊得越明显。</p>
+    <p class="hint">平台 Logo 仅用于玩梗，与各平台无关；请勿用于伪造来源或侵权。</p>
+  </div>
+  </div>
+
+  <div class="actions">
+    <button id="downloadBtn" type="button" class="primary" disabled>生成并下载包浆图</button>
+    <p class="status" id="status">等待上传图片…</p>
+  </div>
+</aside>
+
+<main class="preview" id="preview">
+  <div class="empty">
+    <span>还没有图片，先上传一张，或用示例图直接试</span>
+    <button id="sampleEmpty" type="button" class="plain">使用示例图</button>
+  </div>
+  <canvas id="canvas"></canvas>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  var MAX_SIDE = 1200;
+  var MAX_PASSES = 20;
+
+  var preview = document.getElementById('preview');
+  var canvas = document.getElementById('canvas');
+  var ctx = canvas.getContext('2d');
+  var fileInput = document.getElementById('file');
+  var uploadBtn = document.getElementById('uploadBtn');
+  var sampleBtn = document.getElementById('sampleBtn');
+  var sampleEmpty = document.getElementById('sampleEmpty');
+  var presetButtons = document.querySelectorAll('[data-preset]');
+  var wmPos = document.getElementById('wmPos');
+  var wmReroll = document.getElementById('wmReroll');
+  var platformWm = document.getElementById('platformWm');
+  var downloadBtn = document.getElementById('downloadBtn');
+  var statusEl = document.getElementById('status');
+  var convolveSelect = document.getElementById('convolve');
+
+  var sliders = {
+    green: { input: document.getElementById('green'), output: document.getElementById('greenVal') },
+    years: { input: document.getElementById('years'), output: document.getElementById('yearsVal') },
+    quality: { input: document.getElementById('quality'), output: document.getElementById('qualityVal'), suffix: '%' },
+    noise: { input: document.getElementById('noise'), output: document.getElementById('noiseVal') },
+    darkNoise: { input: document.getElementById('darkNoise'), output: document.getElementById('darkNoiseVal') },
+    mix: { input: document.getElementById('mix'), output: document.getElementById('mixVal') },
+    light: { input: document.getElementById('light'), output: document.getElementById('lightVal') },
+    wmLayers: { input: document.getElementById('wmLayers'), output: document.getElementById('wmLayersVal') }
+  };
+
+  var state = {
+    img: null,
+    green: 0,
+    years: 12,
+    quality: 60,
+    noise: 0,
+    darkNoise: 0,
+    mix: 1,
+    light: 0,
+    convolve: '',
+    wmPlan: 2,
+    wmLayers: 24,
+    platformWm: true
+  };
+
+  var PRESETS = {
+    tieba: { green: 24, years: 14, quality: 32, noise: 55, darkNoise: 32, mix: 1.9, light: 0, wmLayers: 28, platformWm: true },
+    old: { green: 60, years: 20, quality: 12, noise: 95, darkNoise: 70, mix: 4.2, light: -8, wmLayers: 48, platformWm: true },
+    mix: { green: 12, years: 12, quality: 42, noise: 30, darkNoise: 18, mix: 1.5, light: 0, wmLayers: 40, platformWm: true }
+  };
+
+  var W = 0;
+  var H = 0;
+  var renderToken = 0;
+  var blurCanvas = document.createElement('canvas');
+
+  var queue = Promise.resolve();
+  var jobQueued = false;
+  var pendingJobs = 0;
+  var exporting = false;
+  var debounceTimer = 0;
+
+  function setStatus(text) {
+    statusEl.textContent = text;
+  }
+
+  function refreshBusy() {
+    var busy = exporting || pendingJobs > 0;
+    downloadBtn.disabled = busy || !state.img;
+    downloadBtn.textContent = busy ? '处理中...' : '生成并下载包浆图';
+  }
+
+  Object.keys(sliders).forEach(function (key) {
+    var ui = sliders[key];
+    function read() {
+      state[key] = Number(ui.input.value);
+      ui.output.textContent = ui.input.value + (ui.suffix || '');
+    }
+    read();
+    ui.input.addEventListener('input', function () {
+      read();
+      scheduleRender(180);
+    });
+    ui.input.addEventListener('change', function () {
+      read();
+      requestRender();
+    });
+  });
+
+  function applyPreset(key) {
+    var preset = PRESETS[key];
+    if (!preset) return;
+    if (!state.img) {
+      setStatus('请先上传图片，或点“使用示例图”');
+      return;
+    }
+    Object.keys(preset).forEach(function (name) {
+      if (name === 'platformWm') {
+        state.platformWm = preset[name];
+        platformWm.checked = preset[name];
+      } else if (sliders[name]) {
+        state[name] = preset[name];
+        sliders[name].input.value = preset[name];
+        sliders[name].output.textContent = preset[name] + (sliders[name].suffix || '');
+      }
+    });
+    state.convolve = '';
+    convolveSelect.value = '';
+    nameBag = [];
+    platformBag = [];
+    requestRender();
+  }
+
+  presetButtons.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      applyPreset(btn.getAttribute('data-preset'));
+    });
+  });
+
+  platformWm.addEventListener('change', function () {
+    state.platformWm = platformWm.checked;
+    requestRender();
+  });
+
+  wmPos.addEventListener('change', function () {
+    state.wmPlan = Number(wmPos.value);
+    requestRender();
+  });
+
+  convolveSelect.addEventListener('change', function () {
+    state.convolve = convolveSelect.value;
+    requestRender();
+  });
+
+  function scheduleRender(delay) {
+    if (!state.img) return;
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(requestRender, delay);
+  }
+
+  function requestRender() {
+    if (!state.img) return;
+    clearTimeout(debounceTimer);
+    if (jobQueued) return;
+    jobQueued = true;
+    pendingJobs += 1;
+    refreshBusy();
+    queue = queue
+      .then(async function () {
+        jobQueued = false;
+        await runRender();
+      })
+      .catch(function (err) {
+        console.error(err);
+        setStatus('处理失败，请重试');
+      })
+      .finally(function () {
+        pendingJobs -= 1;
+        refreshBusy();
+      });
+  }
+
+  async function runRender() {
+    if (!state.img) return;
+    var token = ++renderToken;
+
+    drawBase();
+    var passes = Math.min(MAX_PASSES, Math.max(1, Math.round(state.years)));
+    var layers = Math.min(60, Math.max(0, Math.round(state.wmLayers)));
+    nameBag = [];
+    platformBag = [];
+    var stamped = 0;
+
+    for (var pass = 1; pass <= passes; pass++) {
+      if (token !== renderToken) return;
+
+      var target = Math.floor(pass * layers / passes);
+      while (stamped < target) {
+        stampLayer();
+        stamped += 1;
+      }
+
+      if (pass === 1) applyAdjustments();
+      applyYuvGreen();
+      await jpegStep(token, pass);
+    }
+    if (token !== renderToken) return;
+
+    setStatus(W + ' × ' + H + ' · 转存 ' + passes + ' 轮 · 水印 ' + layers + ' 处');
+  }
+
+  function stampLayer() {
+    if (state.platformWm && Math.random() < 0.32) {
+      stampPlatformWatermark();
+    } else {
+      stampAutoWatermark();
+    }
+  }
+
+  function drawBase() {
+    ctx.save();
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, W, H);
+
+    if (state.mix > 1.01) {
+      var sw = Math.max(1, Math.round(W / state.mix));
+      var sh = Math.max(1, Math.round(H / state.mix));
+      if (blurCanvas.width !== W || blurCanvas.height !== H) {
+        blurCanvas.width = W;
+        blurCanvas.height = H;
+      }
+      var bctx = blurCanvas.getContext('2d');
+      bctx.clearRect(0, 0, W, H);
+      bctx.fillStyle = '#ffffff';
+      bctx.fillRect(0, 0, W, H);
+      bctx.drawImage(state.img, 0, 0, W, H, (W - sw) / 2, (H - sh) / 2, sw, sh);
+      ctx.drawImage(blurCanvas, (W - sw) / 2, (H - sh) / 2, sw, sh, 0, 0, W, H);
+    } else {
+      ctx.drawImage(state.img, 0, 0, W, H);
+    }
+    ctx.restore();
+  }
+
+  function clampChannel(value) {
+    return value < 0 ? 0 : value > 255 ? 255 : value;
+  }
+
+  var CONVOLUTES = {
+    tiltRight: [0, -1, 0, -1, 2, 2, 0, -1, 0],
+    tiltLeft: [0, -1, 0, 3, 2, -2, 0, -1, 0],
+    sauna: [1 / 9, 1 / 9, 1 / 9, 1 / 9, 1 / 9, 1 / 9, 1 / 9, 1 / 9, 1 / 9],
+    emboss: [1, 1, 1, 1, 1, -1, -1, -1, -1]
+  };
+
+  function convolveData(image, kernel) {
+    var side = Math.round(Math.sqrt(kernel.length));
+    var half = Math.floor(side / 2);
+    var src = image.data;
+    var out = ctx.createImageData(image.width, image.height);
+    var dst = out.data;
+    var width = image.width;
+    var height = image.height;
+
+    for (var y = 0; y < height; y++) {
+      for (var x = 0; x < width; x++) {
+        var y0 = 0;
+        var u0 = 0;
+        var v0 = 0;
+        for (var ky = 0; ky < side; ky++) {
+          var sy = Math.min(height - 1, Math.max(0, y + ky - half));
+          for (var kx = 0; kx < side; kx++) {
+            var sx = Math.min(width - 1, Math.max(0, x + kx - half));
+            var idx = (sy * width + sx) * 4;
+            var k = kernel[ky * side + kx];
+            y0 += src[idx] * k;
+            u0 += src[idx + 1] * k;
+            v0 += src[idx + 2] * k;
+          }
+        }
+        var o = (y * width + x) * 4;
+        dst[o] = y0;
+        dst[o + 1] = u0;
+        dst[o + 2] = v0;
+        dst[o + 3] = 255;
+      }
+    }
+    return out;
+  }
+
+  // 参考 magiconch 的做法：在 YUV 空间加噪、调亮度、卷积，再整体减绿。
+  function applyAdjustments() {
+    var g = state.green / 5;
+    var lightNoise = state.noise;
+    var darkNoise = state.darkNoise;
+    var light = state.light / 100;
+    var kernel = state.convolve ? CONVOLUTES[state.convolve] : null;
+    if (!g && !lightNoise && !darkNoise && !light && !kernel) return;
+
+    var image = ctx.getImageData(0, 0, W, H);
+    var d = image.data;
+    var i;
+
+    for (i = 0; i < d.length; i += 4) {
+      var r = d[i];
+      var gg = d[i + 1];
+      var b = d[i + 2];
+      d[i] = Math.floor(0.299 * r + 0.587 * gg + 0.114 * b);
+      d[i + 1] = Math.floor(-0.168736 * r - 0.331264 * gg + 0.5 * b + 128);
+      d[i + 2] = Math.floor(0.5 * r - 0.418688 * gg - 0.081312 * b + 128);
+    }
+
+    if (lightNoise) {
+      var halfLight = lightNoise / 2;
+      for (i = 0; i < d.length; i += 4) {
+        d[i] = d[i] + (Math.random() * lightNoise - halfLight);
+      }
+    }
+
+    if (darkNoise) {
+      var halfDark = darkNoise / 2;
+      for (i = 0; i < d.length; i += 4) {
+        d[i] = d[i] + (Math.random() * darkNoise - halfDark) * (255 - d[i]) / 255;
+      }
+    }
+
+    if (light) {
+      var lift = 128 * light;
+      for (i = 0; i < d.length; i += 4) d[i] = d[i] + lift;
+    }
+
+    if (kernel) image = convolveData(image, kernel);
+    d = image.data;
+
+    var shift = 4 * g;
+    for (i = 0; i < d.length; i += 4) {
+      var yy = d[i] - shift;
+      var uu = d[i + 1] - shift;
+      var vv = d[i + 2] - shift;
+      d[i] = clampChannel(Math.floor(yy + 1.4075 * (vv - 128)));
+      d[i + 1] = clampChannel(Math.floor(yy - 0.3455 * (uu - 128) - 0.7169 * (vv - 128)));
+      d[i + 2] = clampChannel(Math.floor(yy + 1.779 * (uu - 128)));
+      d[i + 3] = 255;
+    }
+
+    ctx.putImageData(image, 0, 0);
+  }
+
+  // 每轮转存都做一次 YUV 往返，量化误差累积后就是“图都绿了”。
+  function applyYuvGreen() {
+    var image = ctx.getImageData(0, 0, W, H);
+    var d = image.data;
+    for (var i = 0; i < d.length; i += 4) {
+      var r = d[i];
+      var g = d[i + 1];
+      var b = d[i + 2];
+      var y = (77 * r + 150 * g + 29 * b) >> 8;
+      var u = ((-43 * r - 85 * g + 128 * b) >> 8) - 1;
+      var v = ((128 * r - 107 * g - 21 * b) >> 8) - 1;
+      d[i] = clampChannel((65536 * y + 91881 * v) >> 16);
+      d[i + 1] = clampChannel((65536 * y - 22553 * u - 46802 * v) >> 16);
+      d[i + 2] = clampChannel((65536 * y + 116130 * u) >> 16);
+    }
+    ctx.putImageData(image, 0, 0);
+  }
+
+  function decodeImage(src) {
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      img.onload = function () { resolve(img); };
+      img.onerror = function () { reject(new Error('JPEG 解码失败')); };
+      img.src = src;
+    });
+  }
+
+  function jpegStep(token, passIndex) {
+    var base = state.quality / 100;
+    var quality = Math.min(1, Math.max(0.01, base + Math.random() * 0.08));
+    var url = canvas.toDataURL('image/jpeg', quality);
+    return decodeImage(url).then(function (img) {
+      if (token !== renderToken) return;
+      var maxShift = passIndex > 1 ? Math.max(1, Math.round(Math.min(W, H) * 0.004)) : 0;
+      var dx = maxShift ? Math.round((Math.random() * 2 - 1) * maxShift) : 0;
+      var dy = maxShift ? Math.round((Math.random() * 2 - 1) * maxShift) : 0;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, W, H);
+      ctx.drawImage(img, 0, 0, W, H, dx / 2, dy / 2, W + dx, H + dy);
+    });
+  }
+
+  var FONT_STACK = '"PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif';
+
+  var ICON_PATHS = {
+    douyin: 'M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z',
+    bilibili: 'M17.813 4.653h.854c1.51.054 2.769.578 3.773 1.574 1.004.995 1.524 2.249 1.56 3.76v7.36c-.036 1.51-.556 2.769-1.56 3.773s-2.262 1.524-3.773 1.56H5.333c-1.51-.036-2.769-.556-3.773-1.56S.036 18.858 0 17.347v-7.36c.036-1.511.556-2.765 1.56-3.76 1.004-.996 2.262-1.52 3.773-1.574h.774l-1.174-1.12a1.234 1.234 0 0 1-.373-.906c0-.356.124-.658.373-.907l.027-.027c.267-.249.573-.373.92-.373.347 0 .653.124.92.373L9.653 4.44c.071.071.134.142.187.213h4.267a.836.836 0 0 1 .16-.213l2.853-2.747c.267-.249.573-.373.92-.373.347 0 .662.151.929.4.267.249.391.551.391.907 0 .355-.124.657-.373.906zM5.333 7.24c-.746.018-1.373.276-1.88.773-.506.498-.769 1.13-.786 1.894v7.52c.017.764.28 1.395.786 1.893.507.498 1.134.756 1.88.773h13.334c.746-.017 1.373-.275 1.88-.773.506-.498.769-1.129.786-1.893v-7.52c-.017-.765-.28-1.396-.786-1.894-.507-.497-1.134-.755-1.88-.773zM8 11.107c.373 0 .684.124.933.373.25.249.383.569.4.96v1.173c-.017.391-.15.711-.4.96-.249.25-.56.374-.933.374s-.684-.125-.933-.374c-.25-.249-.383-.569-.4-.96V12.44c0-.373.129-.689.386-.947.258-.257.574-.386.947-.386zm8 0c.373 0 .684.124.933.373.25.249.383.569.4.96v1.173c-.017.391-.15.711-.4.96-.249.25-.56.374-.933.374s-.684-.125-.933-.374c-.25-.249-.383-.569-.4-.96V12.44c.017-.391.15-.711.4-.96.249-.249.56-.373.933-.373Z',
+    weibo: 'M10.098 20.323c-3.977.391-7.414-1.406-7.672-4.02-.259-2.609 2.759-5.047 6.74-5.441 3.979-.394 7.413 1.404 7.671 4.018.259 2.6-2.759 5.049-6.737 5.439l-.002.004zM9.05 17.219c-.384.616-1.208.884-1.829.602-.612-.279-.793-.991-.406-1.593.379-.595 1.176-.861 1.793-.601.622.263.82.972.442 1.592zm1.27-1.627c-.141.237-.449.353-.689.253-.236-.09-.313-.361-.177-.586.138-.227.436-.346.672-.24.239.09.315.36.18.601l.014-.028zm.176-2.719c-1.893-.493-4.033.45-4.857 2.118-.836 1.704-.026 3.591 1.886 4.21 1.983.64 4.318-.341 5.132-2.179.8-1.793-.201-3.642-2.161-4.149zm7.563-1.224c-.346-.105-.57-.18-.405-.615.375-.977.42-1.804 0-2.404-.781-1.112-2.915-1.053-5.364-.03 0 0-.766.331-.571-.271.376-1.217.315-2.224-.27-2.809-1.338-1.337-4.869.045-7.888 3.08C1.309 10.87 0 13.273 0 15.348c0 3.981 5.099 6.395 10.086 6.395 6.536 0 10.888-3.801 10.888-6.82 0-1.822-1.547-2.854-2.915-3.284v.01zm1.908-5.092c-.766-.856-1.908-1.187-2.96-.962-.436.09-.706.511-.616.932.09.42.511.691.932.602.511-.105 1.067.044 1.442.465.376.421.466.977.316 1.473-.136.406.089.856.51.992.405.119.857-.105.992-.512.33-1.021.12-2.178-.646-3.035l.03.045zm2.418-2.195c-1.576-1.757-3.905-2.419-6.054-1.968-.496.104-.812.587-.706 1.081.104.496.586.813 1.082.707 1.532-.331 3.185.15 4.296 1.383 1.112 1.246 1.429 2.943.947 4.416-.165.48.106 1.007.586 1.157.479.165.991-.104 1.157-.586.675-2.088.241-4.478-1.338-6.235l.03.045z',
+    baidu: 'M9.154 0C7.71 0 6.54 1.658 6.54 3.707c0 2.051 1.171 3.71 2.615 3.71 1.446 0 2.614-1.659 2.614-3.71C11.768 1.658 10.6 0 9.154 0zm7.025.594C14.86.58 13.347 2.589 13.2 3.927c-.187 1.745.25 3.487 2.179 3.735 1.933.25 3.175-1.806 3.422-3.364.252-1.555-.995-3.364-2.362-3.674a1.218 1.218 0 0 0-.261-.03zM3.582 5.535a2.811 2.811 0 0 0-.156.008c-2.118.19-2.428 3.24-2.428 3.24-.287 1.41.686 4.425 3.297 3.864 2.617-.561 2.262-3.68 2.183-4.362-.125-1.018-1.292-2.773-2.896-2.75zm16.534 1.753c-2.308 0-2.617 2.119-2.617 3.616 0 1.43.121 3.425 2.988 3.362 2.867-.063 2.553-3.238 2.553-3.988 0-.745-.62-2.99-2.924-2.99zm-8.264 2.478c-1.424.014-2.708.925-3.323 1.947-1.118 1.868-2.863 3.05-3.112 3.363-.25.309-3.61 2.116-2.864 5.42.746 3.301 3.365 3.237 3.365 3.237s1.93.19 4.171-.31c2.24-.495 4.17.123 4.17.123s5.233 1.748 6.665-1.616c1.43-3.364-.808-5.109-.808-5.109s-2.99-2.306-4.736-4.798c-1.072-1.665-2.348-2.268-3.528-2.257zm-2.234 3.84l1.542.024v8.197H7.758c-1.47-.291-2.055-1.292-2.13-1.462-.072-.173-.488-.976-.268-2.343.635-2.049 2.447-2.196 2.447-2.196h1.81zm3.964 2.39v3.881c.096.413.612.488.612.488h1.614v-4.343h1.689v5.782h-3.915c-1.517-.39-1.59-1.465-1.59-1.465v-4.317zm-5.458 1.147c-.66.197-.978.708-1.05.928-.076.22-.247.78-.1 1.269.294 1.095 1.248 1.144 1.248 1.144h1.37v-3.34z',
+    kuaishou: 'M18.315 12.264c2.33 0 4.218 1.88 4.218 4.2V19.8c0 2.32-1.888 4.2-4.218 4.2h-6.202a4.218 4.218 0 0 1-4.023-2.938l-3.676 1.833a2.04 2.04 0 0 1-2.731-.903 2.015 2.015 0 0 1-.216-.907v-5.94a2.03 2.03 0 0 1 2.035-2.024 2.044 2.044 0 0 1 .919.218l3.673 1.85a4.218 4.218 0 0 1 4.02-2.925zm-.062 2.162h-6.078c-1.153 0-2.09.921-2.108 2.065v3.247c0 1.148.925 2.081 2.073 2.1h6.113c1.153 0 2.09-.922 2.109-2.065v-3.247a2.104 2.104 0 0 0-2.074-2.1zM4.18 15.72a.554.554 0 0 0-.555.542v3.734a.556.556 0 0 0 .798.496l.01-.004 3.463-1.756V17.51l-3.467-1.73a.557.557 0 0 0-.249-.06zM9.28 0a5.667 5.667 0 0 1 4.98 2.965 4.921 4.921 0 0 1 3.36-1.317c2.714 0 4.913 2.177 4.913 4.863 0 2.686-2.2 4.863-4.912 4.863a4.921 4.921 0 0 1-3.996-2.034 5.651 5.651 0 0 1-4.345 2.034c-3.131 0-5.67-2.546-5.67-5.687C3.61 2.546 6.149 0 9.28 0Zm8.34 3.926c-1.441 0-2.61 1.157-2.61 2.585s1.169 2.585 2.61 2.585c1.443 0 2.612-1.157 2.612-2.585s-1.169-2.585-2.611-2.585zM9.28 2.287a3.395 3.395 0 0 0-3.39 3.4c0 1.877 1.518 3.4 3.39 3.4a3.395 3.395 0 0 0 3.39-3.4c0-1.878-1.518-3.4-3.39-3.4z'
+  };
+
+  var PLATFORM_ANCHOR = {
+    tl: { x: 0.03, y: 0.04, align: 'left', bottom: false },
+    bl: { x: 0.03, y: 0.97, align: 'left', bottom: true },
+    br: { x: 0.97, y: 0.97, align: 'right', bottom: true },
+    bc: { x: 0.5, y: 0.97, align: 'center', bottom: true },
+    tr: { x: 0.97, y: 0.04, align: 'right', bottom: false },
+    center: { x: 0.5, y: 0.46, align: 'center', bottom: false }
+  };
+
+  var PLATFORM_CONFIG = {
+    douyin: { idLength: 12, anchors: [PLATFORM_ANCHOR.bl, PLATFORM_ANCHOR.tl, PLATFORM_ANCHOR.br] },
+    bilibili: { idLength: 0, anchors: [PLATFORM_ANCHOR.tr, PLATFORM_ANCHOR.br] },
+    xhs: { idLength: 10, anchors: [PLATFORM_ANCHOR.br] },
+    tieba: { idLength: 0, anchors: [PLATFORM_ANCHOR.br, PLATFORM_ANCHOR.bl, PLATFORM_ANCHOR.bc] },
+    weibo: { idLength: 0, anchors: [PLATFORM_ANCHOR.br, PLATFORM_ANCHOR.bc, PLATFORM_ANCHOR.center, PLATFORM_ANCHOR.tr] },
+    kuaishou: { idLength: 10, anchors: [PLATFORM_ANCHOR.bl, PLATFORM_ANCHOR.tl, PLATFORM_ANCHOR.br] },
+    zhihu: { idLength: 0, anchors: [PLATFORM_ANCHOR.br, PLATFORM_ANCHOR.tr, PLATFORM_ANCHOR.bc] }
+  };
+
+  var iconCache = {};
+
+  function fontOf(size, weight) {
+    return (weight || 400) + ' ' + size.toFixed(1) + 'px ' + FONT_STACK;
+  }
+
+  function textWidth(text, size, weight) {
+    ctx.save();
+    ctx.font = fontOf(size, weight);
+    var w = ctx.measureText(text).width;
+    ctx.restore();
+    return w;
+  }
+
+  function drawText(text, x, y, size, weight, color, alpha, align, shadow) {
+    ctx.save();
+    ctx.font = fontOf(size, weight);
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = color;
+    ctx.textAlign = align || 'left';
+    ctx.textBaseline = 'top';
+    if (shadow) {
+      ctx.shadowColor = 'rgba(0,0,0,0.5)';
+      ctx.shadowBlur = Math.max(2, size * 0.28);
+      ctx.shadowOffsetY = Math.max(1, size * 0.05);
+    }
+    ctx.fillText(text, x, y);
+    ctx.restore();
+  }
+
+  function getIcon(name) {
+    if (!iconCache[name]) iconCache[name] = new Path2D(ICON_PATHS[name]);
+    return iconCache[name];
+  }
+
+  function drawIcon(name, x, y, size, color, alpha) {
+    var path = getIcon(name);
+    var scale = size / 24;
+    if (color === '#ffffff') {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(scale, scale);
+      ctx.globalAlpha = alpha * 0.35;
+      ctx.fillStyle = '#000000';
+      ctx.translate(0.55, 0.7);
+      ctx.fill(path);
+      ctx.restore();
+    }
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = color;
+    ctx.fill(path);
+    ctx.restore();
+  }
+
+  function roundRectPath(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function placeBlock(wm, blockW, blockH, minSide) {
+    var margin = minSide * 0.02;
+    var a = wm.anchor;
+    var x = a.x * W + a.dx;
+    var y = a.y * H + a.dy - (a.bottom ? blockH : 0);
+    if (a.align === 'right') x -= blockW;
+    else if (a.align === 'center') x -= blockW / 2;
+    x = Math.max(margin, Math.min(W - margin - blockW, x));
+    y = Math.max(margin, Math.min(H - margin - blockH, y));
+    return { x: x, y: y };
+  }
+
+  function drawDouyin(wm, minSide) {
+    var name = '@' + wm.name;
+    var idLine = '抖音号：' + wm.id;
+    var domain = 'douyin.com';
+    var nameSize = minSide * 0.029 * wm.scale;
+    var idSize = minSide * 0.0185 * wm.scale;
+    var domainSize = minSide * 0.0145 * wm.scale;
+    var iconSize = minSide * 0.05 * wm.scale;
+    var gap = iconSize * 0.32;
+    var nameGap = nameSize * 0.18;
+    var idGap = idSize * 0.14;
+    var textH = nameSize + nameGap + idSize + idGap + domainSize;
+    var blockW = iconSize + gap + Math.max(
+      textWidth(name, nameSize, 700),
+      textWidth(idLine, idSize, 400),
+      textWidth(domain, domainSize, 400)
+    );
+    var blockH = Math.max(iconSize, textH);
+    var pos = placeBlock(wm, blockW, blockH, minSide);
+    var iconY = pos.y + (blockH - iconSize) / 2;
+    var textY = pos.y + (blockH - textH) / 2;
+    var textX = pos.x + iconSize + gap;
+    var glitch = iconSize * 0.06;
+
+    drawIcon('douyin', pos.x + glitch, iconY, iconSize, '#25f4ee', wm.alpha * 0.7);
+    drawIcon('douyin', pos.x - glitch, iconY, iconSize, '#fe2c55', wm.alpha * 0.7);
+    drawIcon('douyin', pos.x, iconY, iconSize, '#ffffff', wm.alpha);
+
+    drawText(name, textX, textY, nameSize, 700, '#ffffff', wm.alpha, 'left', true);
+    drawText(idLine, textX, textY + nameSize + nameGap, idSize, 400, '#ffffff', wm.alpha * 0.92, 'left', true);
+    drawText(domain, textX, textY + nameSize + nameGap + idSize + idGap, domainSize, 400, '#ffffff', wm.alpha * 0.78, 'left', true);
+  }
+
+  function drawBilibili(wm, minSide) {
+    var word = 'bilibili';
+    var name = '@' + wm.name;
+    var domain = 'bilibili.com';
+    var iconSize = minSide * 0.046 * wm.scale;
+    var wordSize = minSide * 0.031 * wm.scale;
+    var nameSize = minSide * 0.018 * wm.scale;
+    var domainSize = minSide * 0.0135 * wm.scale;
+    var gap = iconSize * 0.3;
+    var lineGap = nameSize * 0.35;
+    var domainGap = domainSize * 0.3;
+    var textH = wordSize + lineGap + nameSize + domainGap + domainSize;
+    var blockW = iconSize + gap + Math.max(
+      textWidth(word, wordSize, 800),
+      textWidth(name, nameSize, 400),
+      textWidth(domain, domainSize, 400)
+    );
+    var blockH = Math.max(iconSize, textH);
+    var pos = placeBlock(wm, blockW, blockH, minSide);
+    var iconY = pos.y + (blockH - iconSize) / 2;
+    var textY = pos.y + (blockH - textH) / 2;
+    var textX = pos.x + iconSize + gap;
+
+    drawIcon('bilibili', pos.x, iconY, iconSize, '#ffffff', wm.alpha);
+    drawText(word, textX, textY, wordSize, 800, '#ffffff', wm.alpha, 'left', true);
+    drawText(name, textX, textY + wordSize + lineGap, nameSize, 400, '#ffffff', wm.alpha * 0.88, 'left', true);
+    drawText(domain, textX, textY + wordSize + lineGap + nameSize + domainGap, domainSize, 400, '#ffffff', wm.alpha * 0.72, 'left', true);
+  }
+
+  function drawXhs(wm, minSide) {
+    var label = '小红书';
+    var idLine = '小红书号：' + wm.id;
+    var pillTextSize = minSide * 0.0245 * wm.scale;
+    var idSize = minSide * 0.02 * wm.scale;
+    var padX = pillTextSize * 0.85;
+    var padY = pillTextSize * 0.55;
+    var pillW = textWidth(label, pillTextSize, 700) + padX * 2;
+    var pillH = pillTextSize + padY * 2;
+    var idW = textWidth(idLine, idSize, 400);
+    var blockW = Math.max(pillW, idW);
+    var idGap = idSize * 0.5;
+    var blockH = pillH + idGap + idSize;
+    var pos = placeBlock(wm, blockW, blockH, minSide);
+    var pillX = pos.x + blockW - pillW;
+    var pillAlpha = Math.min(1, wm.alpha + 0.18);
+
+    ctx.save();
+    ctx.globalAlpha = pillAlpha;
+    ctx.shadowColor = 'rgba(0,0,0,0.28)';
+    ctx.shadowBlur = Math.max(3, pillH * 0.16);
+    ctx.shadowOffsetY = Math.max(1, pillH * 0.04);
+    roundRectPath(pillX, pos.y, pillW, pillH, pillH / 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.restore();
+
+    drawText(label, pillX + pillW / 2, pos.y + padY, pillTextSize, 700, '#ff2442', pillAlpha, 'center', false);
+    drawText(idLine, pos.x + blockW, pos.y + pillH + idGap, idSize, 400, '#ffffff', wm.alpha, 'right', true);
+  }
+
+  function drawTieba(wm, minSide) {
+    var name = '@' + wm.name;
+    var domain = 'tieba.baidu.com';
+    var iconSize = minSide * 0.042 * wm.scale;
+    var labelSize = minSide * 0.026 * wm.scale;
+    var nameSize = labelSize * 0.8;
+    var domainSize = minSide * 0.014 * wm.scale;
+    var gap = iconSize * 0.3;
+    var lineGap = nameSize * 0.14;
+    var textW = Math.max(
+      textWidth('贴吧', labelSize, 800),
+      textWidth(name, nameSize, 400),
+      textWidth(domain, domainSize, 400)
+    );
+    var textH = labelSize + lineGap + nameSize + lineGap + domainSize;
+    var blockW = iconSize + gap + textW;
+    var blockH = Math.max(iconSize, textH);
+    var pos = placeBlock(wm, blockW, blockH, minSide);
+    var iconY = pos.y + (blockH - iconSize) / 2;
+    var textY = pos.y + (blockH - textH) / 2;
+    var textX = pos.x + iconSize + gap;
+
+    drawIcon('baidu', pos.x, iconY, iconSize, '#a9c9ff', wm.alpha);
+    drawText('贴吧', textX, textY, labelSize, 800, '#ffffff', wm.alpha, 'left', true);
+    drawText(name, textX, textY + labelSize + lineGap, nameSize, 400, '#ffffff', wm.alpha * 0.9, 'left', true);
+    drawText(domain, textX, textY + labelSize + lineGap + nameSize + lineGap, domainSize, 400, '#ffffff', wm.alpha * 0.75, 'left', true);
+  }
+
+  function drawWeibo(wm, minSide) {
+    var name = '@' + wm.name;
+    var domain = 'weibo.com';
+    var iconSize = minSide * 0.044 * wm.scale;
+    var labelSize = minSide * 0.027 * wm.scale;
+    var nameSize = labelSize * 0.78;
+    var domainSize = minSide * 0.0135 * wm.scale;
+    var gap = iconSize * 0.3;
+    var lineGap = nameSize * 0.3;
+    var domainGap = domainSize * 0.3;
+    var textH = labelSize + lineGap + nameSize + domainGap + domainSize;
+    var blockW = iconSize + gap + Math.max(
+      textWidth('微博', labelSize, 800),
+      textWidth(name, nameSize, 400),
+      textWidth(domain, domainSize, 400)
+    );
+    var blockH = Math.max(iconSize, textH);
+    var pos = placeBlock(wm, blockW, blockH, minSide);
+    var iconY = pos.y + (blockH - iconSize) / 2;
+    var textY = pos.y + (blockH - textH) / 2;
+    var textX = pos.x + iconSize + gap;
+
+    drawIcon('weibo', pos.x, iconY, iconSize, '#ffffff', wm.alpha);
+    drawText('微博', textX, textY, labelSize, 800, '#ffffff', wm.alpha, 'left', true);
+    drawText(name, textX, textY + labelSize + lineGap, nameSize, 400, '#ffffff', wm.alpha * 0.9, 'left', true);
+    drawText(domain, textX, textY + labelSize + lineGap + nameSize + domainGap, domainSize, 400, '#ffffff', wm.alpha * 0.72, 'left', true);
+  }
+
+  function drawKuaishou(wm, minSide) {
+    var name = '快手 @' + wm.name;
+    var idLine = '快手号：' + wm.id;
+    var domain = 'kuaishou.com';
+    var iconSize = minSide * 0.046 * wm.scale;
+    var nameSize = minSide * 0.025 * wm.scale;
+    var idSize = minSide * 0.0175 * wm.scale;
+    var domainSize = minSide * 0.013 * wm.scale;
+    var gap = iconSize * 0.3;
+    var lineGap = nameSize * 0.18;
+    var domainGap = domainSize * 0.3;
+    var textH = nameSize + lineGap + idSize + domainGap + domainSize;
+    var blockW = iconSize + gap + Math.max(
+      textWidth(name, nameSize, 700),
+      textWidth(idLine, idSize, 400),
+      textWidth(domain, domainSize, 400)
+    );
+    var blockH = Math.max(iconSize, textH);
+    var pos = placeBlock(wm, blockW, blockH, minSide);
+    var iconY = pos.y + (blockH - iconSize) / 2;
+    var textY = pos.y + (blockH - textH) / 2;
+    var textX = pos.x + iconSize + gap;
+
+    drawIcon('kuaishou', pos.x, iconY, iconSize, '#ff5a1f', wm.alpha);
+    drawText(name, textX, textY, nameSize, 700, '#ffffff', wm.alpha, 'left', true);
+    drawText(idLine, textX, textY + nameSize + lineGap, idSize, 400, '#ffffff', wm.alpha * 0.9, 'left', true);
+    drawText(domain, textX, textY + nameSize + lineGap + idSize + domainGap, domainSize, 400, '#ffffff', wm.alpha * 0.7, 'left', true);
+  }
+
+  function drawZhihu(wm, minSide) {
+    var name = '@' + wm.name;
+    var domain = 'zhihu.com';
+    var iconSize = minSide * 0.044 * wm.scale;
+    var wordSize = minSide * 0.028 * wm.scale;
+    var nameSize = minSide * 0.018 * wm.scale;
+    var domainSize = minSide * 0.0135 * wm.scale;
+    var gap = iconSize * 0.3;
+    var lineGap = nameSize * 0.32;
+    var textH = wordSize + lineGap + nameSize + lineGap + domainSize;
+    var blockW = iconSize + gap + Math.max(
+      textWidth('知乎', wordSize, 800),
+      textWidth(name, nameSize, 400),
+      textWidth(domain, domainSize, 400)
+    );
+    var blockH = Math.max(iconSize, textH);
+    var pos = placeBlock(wm, blockW, blockH, minSide);
+    var iconY = pos.y + (blockH - iconSize) / 2;
+    var textY = pos.y + (blockH - textH) / 2;
+    var textX = pos.x + iconSize + gap;
+
+    ctx.save();
+    ctx.globalAlpha = wm.alpha;
+    ctx.shadowColor = 'rgba(0,0,0,0.35)';
+    ctx.shadowBlur = Math.max(2, iconSize * 0.12);
+    ctx.shadowOffsetY = Math.max(1, iconSize * 0.04);
+    ctx.fillStyle = '#0084ff';
+    roundRectPath(pos.x, iconY, iconSize, iconSize, iconSize * 0.24);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    ctx.globalAlpha = wm.alpha;
+    ctx.fillStyle = '#ffffff';
+    ctx.font = fontOf(iconSize * 0.62, 700);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('知', pos.x + iconSize / 2, iconY + iconSize / 2 + iconSize * 0.03);
+    ctx.restore();
+
+    drawText('知乎', textX, textY, wordSize, 800, '#ffffff', wm.alpha, 'left', true);
+    drawText(name, textX, textY + wordSize + lineGap, nameSize, 400, '#ffffff', wm.alpha * 0.9, 'left', true);
+    drawText(domain, textX, textY + wordSize + lineGap + nameSize + lineGap, domainSize, 400, '#ffffff', wm.alpha * 0.72, 'left', true);
+  }
+
+  var WATERMARK_RENDERERS = {
+    douyin: drawDouyin,
+    bilibili: drawBilibili,
+    xhs: drawXhs,
+    tieba: drawTieba,
+    weibo: drawWeibo,
+    kuaishou: drawKuaishou,
+    zhihu: drawZhihu
+  };
+
+  var WM_NAMES = [
+    '电子包浆', '电脑玩家海螺', '神奇海螺_0000', '明日香', '绫波丽', '碇真嗣',
+    '樱岛麻衣', '高坂丽奈', '秋山澪', '中野梓', '凉宫春日', '小鸟游六花',
+    '薇尔莉特', '伊吹公子', '藤林杏', '春原阳平', '长门有希', '冈崎朋也',
+    '不想上班的咸鱼', '晚风里的橘子', '摸鱼小能手', '快乐小土豆', '隔壁的猫',
+    '一只柠檬精', '爱吃团子', '月亮上的兔子', '路过的网友', '汽水味的风',
+    'momo_0000', 'Aki_0000', 'Lemon_0000', 'Mochi_0000', 'Seele_0000', 'HomeArchbishop',
+    '深夜放毒', '冷面笑匠', '会飞的猪', '蓝色小药丸', '不困的猫头鹰', '半糖去冰',
+    '今天也想躺平', '像素游侠', '白开水加冰', '小城故事', '落日收藏家', '云朵贩卖机',
+    'Kiko_0000', 'Nana_0000', 'Yuki_0000', 'Panda_0000', 'Sora_0000', 'Toko_0000',
+    '发呆专业户', '散步的蜗牛', '一颗小行星', '周二的雨', '橘子汽水', '海盐芝士'
+  ];
+  var nameBag = [];
+  var platformBag = [];
+  var PUNCT_CHARS = '-_+~!^&、.。”“"\'|';
+
+  function nextHandle() {
+    if (!nameBag.length) {
+      nameBag = WM_NAMES.slice();
+      for (var i = nameBag.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var tmp = nameBag[i];
+        nameBag[i] = nameBag[j];
+        nameBag[j] = tmp;
+      }
+    }
+    var name = nameBag.pop();
+    var punct = PUNCT_CHARS.charAt(Math.floor(Math.random() * PUNCT_CHARS.length));
+    return name
+      .replace(/\d{4}/, function () {
+        return String(Math.floor(Math.random() * 10000)).padStart(4, '0');
+      })
+      .replace(/_/g, punct);
+  }
+
+  function stampAutoWatermark() {
+    var size = W / (22 + Math.floor(Math.random() * 8));
+    var name = '@' + nextHandle();
+    var plan = Math.floor(Math.random() * (state.wmPlan + 1));
+    var spreadX = plan === 0 ? W * 0.02 : W * 0.06;
+    var spreadY = W * 0.03;
+    var x;
+    var y;
+    var align;
+
+    if (plan === 0) {
+      align = 'right';
+      x = W - size * 1.2 + (Math.random() * spreadX - spreadX / 2);
+      y = H - size * 1.2 + (Math.random() * spreadY - spreadY / 2);
+    } else if (plan === 1) {
+      align = 'center';
+      x = W / 2 + (Math.random() * spreadX - spreadX / 2);
+      y = H - size * 1.2 + (Math.random() * spreadY - spreadY / 2);
+    } else {
+      align = 'center';
+      x = W / 2 + (Math.random() * spreadX - spreadX / 2);
+      y = H / 2 + size + (Math.random() * spreadY - spreadY / 2);
+    }
+
+    ctx.save();
+    ctx.font = '400 ' + size.toFixed(1) + 'px ' + FONT_STACK;
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = align;
+    ctx.textBaseline = 'bottom';
+    ctx.shadowColor = 'rgba(0,0,0,0.6)';
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 1;
+    ctx.shadowBlur = 4;
+    ctx.fillText(name, x, y);
+    ctx.restore();
+  }
+
+  function randomDigits(length) {
+    var text = '';
+    for (var i = 0; i < length; i++) text += Math.floor(Math.random() * 10);
+    return text;
+  }
+
+  function stampPlatformWatermark() {
+    var platform = nextPlatform();
+    var config = PLATFORM_CONFIG[platform];
+    var spot = config.anchors[Math.floor(Math.random() * config.anchors.length)];
+    var minSide = Math.min(W, H);
+    var level = Math.floor(Math.random() * 3);
+    var levelDy = (spot.bottom ? -1 : 1) * level * minSide * 0.085;
+
+    var wm = {
+      platform: platform,
+      name: nextHandle(),
+      id: randomDigits(config.idLength),
+      anchor: {
+        x: spot.x,
+        y: spot.y,
+        align: spot.align,
+        bottom: spot.bottom,
+        dx: (Math.random() - 0.5) * W * 0.03,
+        dy: (Math.random() - 0.5) * W * 0.02 + levelDy
+      },
+      scale: 0.9 + Math.random() * 0.3,
+      alpha: 0.78 + Math.random() * 0.16
+    };
+
+    var render = WATERMARK_RENDERERS[platform];
+    if (render) render(wm, minSide);
+  }
+
+  function nextPlatform() {
+    if (!platformBag.length) {
+      platformBag = Object.keys(PLATFORM_CONFIG);
+      for (var i = platformBag.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var tmp = platformBag[i];
+        platformBag[i] = platformBag[j];
+        platformBag[j] = tmp;
+      }
+    }
+    return platformBag.pop();
+  }
+
+  uploadBtn.addEventListener('click', function () {
+    fileInput.click();
+  });
+
+  fileInput.addEventListener('change', function () {
+    var file = fileInput.files && fileInput.files[0];
+    fileInput.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setStatus('请选择图片文件');
+      return;
+    }
+    loadImageFile(file);
+  });
+
+  sampleBtn.addEventListener('click', useSampleImage);
+  sampleEmpty.addEventListener('click', useSampleImage);
+
+  function makeSampleImage() {
+    var c = document.createElement('canvas');
+    c.width = 1200;
+    c.height = 800;
+    var g = c.getContext('2d');
+
+    var sky = g.createLinearGradient(0, 0, 0, 540);
+    sky.addColorStop(0, '#8fbdd9');
+    sky.addColorStop(0.42, '#cfe0d6');
+    sky.addColorStop(0.74, '#f4d9a8');
+    sky.addColorStop(1, '#efb98a');
+    g.fillStyle = sky;
+    g.fillRect(0, 0, 1200, 800);
+
+    var sun = g.createRadialGradient(905, 235, 10, 905, 235, 200);
+    sun.addColorStop(0, 'rgba(255,248,215,0.95)');
+    sun.addColorStop(0.45, 'rgba(255,235,170,0.5)');
+    sun.addColorStop(1, 'rgba(255,225,160,0)');
+    g.fillStyle = sun;
+    g.beginPath();
+    g.arc(905, 235, 200, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = '#fff4cf';
+    g.beginPath();
+    g.arc(905, 235, 88, 0, Math.PI * 2);
+    g.fill();
+
+    function cloud(x, y, s, a) {
+      g.save();
+      g.globalAlpha = a;
+      g.fillStyle = '#ffffff';
+      g.beginPath();
+      g.ellipse(x, y, 90 * s, 24 * s, 0, 0, Math.PI * 2);
+      g.ellipse(x + 55 * s, y - 14 * s, 65 * s, 28 * s, 0, 0, Math.PI * 2);
+      g.ellipse(x - 55 * s, y + 2 * s, 55 * s, 20 * s, 0, 0, Math.PI * 2);
+      g.fill();
+      g.restore();
+    }
+    cloud(210, 180, 1, 0.5);
+    cloud(560, 120, 0.8, 0.34);
+    cloud(1020, 430, 1.2, 0.2);
+
+    g.fillStyle = '#7d9aa2';
+    g.beginPath();
+    g.moveTo(0, 480);
+    g.lineTo(180, 320);
+    g.lineTo(320, 460);
+    g.lineTo(470, 300);
+    g.lineTo(650, 480);
+    g.lineTo(1200, 480);
+    g.lineTo(1200, 530);
+    g.lineTo(0, 530);
+    g.closePath();
+    g.fill();
+
+    g.fillStyle = '#5d7f7f';
+    g.beginPath();
+    g.moveTo(0, 530);
+    g.lineTo(240, 400);
+    g.lineTo(390, 530);
+    g.lineTo(600, 380);
+    g.lineTo(820, 530);
+    g.lineTo(1200, 470);
+    g.lineTo(1200, 555);
+    g.lineTo(0, 555);
+    g.closePath();
+    g.fill();
+
+    var sea = g.createLinearGradient(0, 520, 0, 800);
+    sea.addColorStop(0, '#7ba6a6');
+    sea.addColorStop(0.4, '#527f86');
+    sea.addColorStop(1, '#2f5561');
+    g.fillStyle = sea;
+    g.fillRect(0, 520, 1200, 280);
+
+    g.save();
+    g.globalAlpha = 0.32;
+    g.fillStyle = '#ffe6a6';
+    for (var r = 0; r < 8; r++) {
+      g.beginPath();
+      g.ellipse(905, 545 + r * 32, 95 - r * 7, 8, 0, 0, Math.PI * 2);
+      g.fill();
+    }
+    g.restore();
+
+    for (var i = 0; i < 70; i++) {
+      var yy = 528 + i * 3.9;
+      var xx = (i * 173) % 1200;
+      g.strokeStyle = 'rgba(255,255,255,' + (0.035 + (i % 5) * 0.012) + ')';
+      g.lineWidth = 1.2;
+      g.beginPath();
+      g.moveTo(xx, yy);
+      g.lineTo(xx + 60 + (i % 7) * 16, yy);
+      g.stroke();
+    }
+
+    g.fillStyle = '#3a3f3a';
+    g.beginPath();
+    g.moveTo(760, 590);
+    g.lineTo(850, 590);
+    g.lineTo(835, 608);
+    g.lineTo(772, 608);
+    g.closePath();
+    g.fill();
+    g.strokeStyle = '#3a3f3a';
+    g.lineWidth = 3;
+    g.beginPath();
+    g.moveTo(800, 590);
+    g.lineTo(800, 516);
+    g.stroke();
+    g.fillStyle = 'rgba(250,242,218,0.86)';
+    g.beginPath();
+    g.moveTo(804, 520);
+    g.lineTo(804, 584);
+    g.lineTo(858, 578);
+    g.closePath();
+    g.fill();
+
+    var rock = g.createLinearGradient(0, 560, 0, 800);
+    rock.addColorStop(0, '#3f4a42');
+    rock.addColorStop(1, '#222c29');
+    g.fillStyle = rock;
+    g.beginPath();
+    g.moveTo(0, 800);
+    g.lineTo(0, 610);
+    g.lineTo(120, 588);
+    g.lineTo(250, 638);
+    g.lineTo(330, 720);
+    g.lineTo(372, 800);
+    g.closePath();
+    g.fill();
+
+    g.strokeStyle = '#2b241c';
+    g.lineWidth = 13;
+    g.beginPath();
+    g.moveTo(118, 660);
+    g.lineTo(104, 545);
+    g.stroke();
+    g.fillStyle = '#314f3a';
+    g.beginPath();
+    g.arc(100, 520, 74, 0, Math.PI * 2);
+    g.arc(48, 552, 48, 0, Math.PI * 2);
+    g.arc(156, 548, 54, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = '#3e6347';
+    g.beginPath();
+    g.arc(82, 500, 46, 0, Math.PI * 2);
+    g.arc(132, 512, 42, 0, Math.PI * 2);
+    g.fill();
+
+    function bird(x, y, s) {
+      g.beginPath();
+      g.moveTo(x - 14 * s, y);
+      g.quadraticCurveTo(x - 7 * s, y - 8 * s, x, y);
+      g.quadraticCurveTo(x + 7 * s, y - 8 * s, x + 14 * s, y);
+      g.stroke();
+    }
+    g.strokeStyle = 'rgba(45,60,60,0.55)';
+    g.lineWidth = 2;
+    bird(690, 250, 1);
+    bird(735, 228, 0.75);
+    bird(660, 215, 0.55);
+
+    var vig = g.createRadialGradient(600, 400, 320, 600, 400, 780);
+    vig.addColorStop(0, 'rgba(0,0,0,0)');
+    vig.addColorStop(1, 'rgba(18,28,28,0.16)');
+    g.fillStyle = vig;
+    g.fillRect(0, 0, 1200, 800);
+
+    return c.toDataURL('image/jpeg', 0.92);
+  }
+
+  function useSampleImage() {
+    loadImageUrl(makeSampleImage(), '示例图', false);
+  }
+
+  function loadImageFile(file) {
+    loadImageUrl(URL.createObjectURL(file), '图片', true);
+  }
+
+  function loadImageUrl(url, label, revoke) {
+    var img = new Image();
+
+    img.onload = function () {
+      if (revoke) URL.revokeObjectURL(url);
+      renderToken += 1;
+
+      state.img = img;
+      nameBag = [];
+      platformBag = [];
+
+      var scale = Math.min(1, MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
+      W = Math.max(1, Math.round(img.naturalWidth * scale));
+      H = Math.max(1, Math.round(img.naturalHeight * scale));
+
+      canvas.width = W;
+      canvas.height = H;
+
+      preview.classList.add('has-image');
+      refreshBusy();
+      setStatus('已载入' + label + ' ' + img.naturalWidth + ' × ' + img.naturalHeight);
+      requestRender();
+    };
+
+    img.onerror = function () {
+      if (revoke) URL.revokeObjectURL(url);
+      setStatus('图片加载失败，请换一张试试');
+    };
+
+    img.src = url;
+  }
+
+  wmReroll.addEventListener('click', function () {
+    if (!state.img) {
+      setStatus('请先上传图片');
+      return;
+    }
+    nameBag = [];
+    platformBag = [];
+    requestRender();
+  });
+
+  async function flushRender() {
+    clearTimeout(debounceTimer);
+    requestRender();
+    await queue;
+  }
+
+  downloadBtn.addEventListener('click', async function () {
+    if (!state.img || exporting) return;
+    exporting = true;
+    refreshBusy();
+    try {
+      await flushRender();
+      var dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+      var link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = '包浆图.jpg';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setStatus('已生成 包浆图.jpg');
+    } catch (err) {
+      console.error(err);
+      setStatus('生成失败，请重试');
+    } finally {
+      exporting = false;
+      refreshBusy();
+    }
+  });
+
+  refreshBusy();
+})();
+</script>
+</body>
+</html>
