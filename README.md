@@ -4,7 +4,7 @@
 
 纯前端单文件，打开就能用，图片不会上传到任何服务器。
 
-**在线使用**：<https://dianzi-baojiang-9enf4v6tdio.qoder.zone>
+**在线使用**：[Qoder Sites](https://dianzi-baojiang-9enf4v6tdio.qoder.zone) · [GitHub Pages](https://jiacheng6.github.io/dianzi-baojiang/)
 
 ![前后对比](screenshots/before-after.png)
 
